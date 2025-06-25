@@ -18,11 +18,11 @@ const ACCOUNT_ID = process.env.ACCOUNT_ID!;
 const CHECK_TRADE_INTERVAL = 15 * 60 * 1000;
 
 const lotSize = 1;
-const numCandles = 10;
+const numCandles = 15;
 const symbol = "US30";
 const timeframe = "1m";
 const riskPoints = 50; // Adjust your risk
-// const rewardPoints = riskPoints * 1.5;
+const rewardPoints = riskPoints * 1.5;
 
 async function connectToAccount() {
   const api = new MetaApi(METAAPI_TOKEN);
@@ -94,49 +94,49 @@ async function checkAndTrade(
   console.log(`Trend: ${side.toUpperCase()}`);
 
   let stopLoss: number;
-  // let takeProfit: number;
+  let takeProfit: number;
 
   if (side === "buy") {
     stopLoss = currentPrice - riskPoints;
-    // takeProfit = currentPrice + rewardPoints;
+    takeProfit = currentPrice + rewardPoints;
     await connection.createMarketBuyOrder(
       symbol,
       lotSize,
       stopLoss,
-      undefined,
-      {
-        trailingStopLoss: {
-          threshold: {
-            thresholds: [
-              { threshold: 50, stopLoss: 20 },
-              { threshold: 100, stopLoss: 10 },
-              { threshold: 150, stopLoss: 5 },
-            ],
-            units: "RELATIVE_POINTS",
-          },
-        },
-      }
+      undefined
+      // {
+      //   trailingStopLoss: {
+      //     threshold: {
+      //       thresholds: [
+      //         { threshold: 50, stopLoss: 20 },
+      //         { threshold: 100, stopLoss: 10 },
+      //         { threshold: 150, stopLoss: 5 },
+      //       ],
+      //       units: "RELATIVE_POINTS",
+      //     },
+      //   },
+      // }
     );
   } else {
     stopLoss = currentPrice + riskPoints;
-    // takeProfit = currentPrice - rewardPoints;
+    takeProfit = currentPrice - rewardPoints;
     await connection.createMarketSellOrder(
       symbol,
       lotSize,
       stopLoss,
-      undefined,
-      {
-        trailingStopLoss: {
-          threshold: {
-            thresholds: [
-              { threshold: 50, stopLoss: 20 },
-              { threshold: 100, stopLoss: 10 },
-              { threshold: 150, stopLoss: 5 },
-            ],
-            units: "RELATIVE_POINTS",
-          },
-        },
-      }
+      undefined
+      // {
+      //   trailingStopLoss: {
+      //     threshold: {
+      //       thresholds: [
+      //         { threshold: 50, stopLoss: 20 },
+      //         { threshold: 100, stopLoss: 10 },
+      //         { threshold: 150, stopLoss: 5 },
+      //       ],
+      //       units: "RELATIVE_POINTS",
+      //     },
+      //   },
+      // }
     );
   }
 
