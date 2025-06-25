@@ -14,15 +14,19 @@ dotenv.config();
 
 const METAAPI_TOKEN = process.env.METAAPI_TOKEN!;
 const ACCOUNT_ID = process.env.ACCOUNT_ID!;
+const TRADE_INTERVAL = process.env.TRADE_INTERVAL!;
 
-const CHECK_TRADE_INTERVAL = 15 * 60 * 1000;
+const CHECK_TRADE_INTERVAL = Number(TRADE_INTERVAL) * 60 * 1000;
 
-const lotSize = 1;
+const lotSize = Number(process.env.LOT_SIZE) || 1;
 const numCandles = 15;
 const symbol = "US30";
 const timeframe = "1m";
-const riskPoints = 50; // Adjust your risk
-const rewardPoints = riskPoints * 1.5;
+const riskPoints = Number(process.env.RISK_POINTS) || 50; // Adjust your risk
+const rewardMultiplier = Number(process.env.REWARD_MULTIPLIER) || 1.5;
+const rewardPoints = riskPoints * rewardMultiplier;
+
+console.log(lotSize, rewardMultiplier, rewardPoints);
 
 async function connectToAccount() {
   const api = new MetaApi(METAAPI_TOKEN);
@@ -70,7 +74,7 @@ async function checkAndTrade(
   try {
     const jsonData = JSON.stringify(candles);
     const prompt = `
-      Here are the last 5 one-minute candles for US30 (in JSON format):
+      Here are the last ${numCandles} one-minute candles for US30 (in JSON format):
       ${jsonData}
 
       Assume this is an index CFD with high volatility. Use basic price action patterns to make your BUY or SELL decision.
@@ -120,6 +124,7 @@ async function checkAndTrade(
   } else {
     stopLoss = currentPrice + riskPoints;
     takeProfit = currentPrice - rewardPoints;
+    console.log(takeProfit);
     await connection.createMarketSellOrder(
       symbol,
       lotSize,
@@ -140,7 +145,9 @@ async function checkAndTrade(
     );
   }
 
-  console.log(`Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}`);
+  console.log(
+    `Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`
+  );
 }
 
 async function startBot() {

@@ -44,13 +44,16 @@ const express_1 = __importDefault(require("express"));
 dotenv.config();
 const METAAPI_TOKEN = process.env.METAAPI_TOKEN;
 const ACCOUNT_ID = process.env.ACCOUNT_ID;
-const CHECK_TRADE_INTERVAL = 15 * 60 * 1000;
-const lotSize = 1;
-const numCandles = 10;
+const TRADE_INTERVAL = process.env.TRADE_INTERVAL;
+const CHECK_TRADE_INTERVAL = Number(TRADE_INTERVAL) * 60 * 1000;
+const lotSize = Number(process.env.LOT_SIZE) || 1;
+const numCandles = 15;
 const symbol = "US30";
 const timeframe = "1m";
-const riskPoints = 50; // Adjust your risk
-// const rewardPoints = riskPoints * 1.5;
+const riskPoints = Number(process.env.RISK_POINTS) || 50; // Adjust your risk
+const rewardMultiplier = Number(process.env.REWARD_MULTIPLIER) || 1.5;
+const rewardPoints = riskPoints * rewardMultiplier;
+console.log(lotSize, rewardMultiplier, rewardPoints);
 async function connectToAccount() {
     const api = new metaapi_cloud_sdk_1.default(METAAPI_TOKEN);
     const account = await api.metatraderAccountApi.getAccount(ACCOUNT_ID);
@@ -82,7 +85,7 @@ async function checkAndTrade(connection, account) {
     try {
         const jsonData = JSON.stringify(candles);
         const prompt = `
-      Here are the last 5 one-minute candles for US30 (in JSON format):
+      Here are the last ${numCandles} one-minute candles for US30 (in JSON format):
       ${jsonData}
 
       Assume this is an index CFD with high volatility. Use basic price action patterns to make your BUY or SELL decision.
@@ -103,40 +106,45 @@ async function checkAndTrade(connection, account) {
     }
     console.log(`Trend: ${side.toUpperCase()}`);
     let stopLoss;
-    // let takeProfit: number;
+    let takeProfit;
     if (side === "buy") {
         stopLoss = currentPrice - riskPoints;
-        // takeProfit = currentPrice + rewardPoints;
-        await connection.createMarketBuyOrder(symbol, lotSize, stopLoss, undefined, {
-            trailingStopLoss: {
-                threshold: {
-                    thresholds: [
-                        { threshold: 50, stopLoss: 20 },
-                        { threshold: 100, stopLoss: 10 },
-                        { threshold: 150, stopLoss: 5 },
-                    ],
-                    units: "RELATIVE_POINTS",
-                },
-            },
-        });
+        takeProfit = currentPrice + rewardPoints;
+        await connection.createMarketBuyOrder(symbol, lotSize, stopLoss, takeProfit
+        // {
+        //   trailingStopLoss: {
+        //     threshold: {
+        //       thresholds: [
+        //         { threshold: 50, stopLoss: 20 },
+        //         { threshold: 100, stopLoss: 10 },
+        //         { threshold: 150, stopLoss: 5 },
+        //       ],
+        //       units: "RELATIVE_POINTS",
+        //     },
+        //   },
+        // }
+        );
     }
     else {
         stopLoss = currentPrice + riskPoints;
-        // takeProfit = currentPrice - rewardPoints;
-        await connection.createMarketSellOrder(symbol, lotSize, stopLoss, undefined, {
-            trailingStopLoss: {
-                threshold: {
-                    thresholds: [
-                        { threshold: 50, stopLoss: 20 },
-                        { threshold: 100, stopLoss: 10 },
-                        { threshold: 150, stopLoss: 5 },
-                    ],
-                    units: "RELATIVE_POINTS",
-                },
-            },
-        });
+        takeProfit = currentPrice - rewardPoints;
+        console.log(takeProfit);
+        await connection.createMarketSellOrder(symbol, lotSize, stopLoss, takeProfit
+        // {
+        //   trailingStopLoss: {
+        //     threshold: {
+        //       thresholds: [
+        //         { threshold: 50, stopLoss: 20 },
+        //         { threshold: 100, stopLoss: 10 },
+        //         { threshold: 150, stopLoss: 5 },
+        //       ],
+        //       units: "RELATIVE_POINTS",
+        //     },
+        //   },
+        // }
+        );
     }
-    console.log(`Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}`);
+    console.log(`Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`);
 }
 async function startBot() {
     const { connection, account } = await connectToAccount();
@@ -159,5 +167,5 @@ app.get("/", (req, res) => {
 });
 app.listen(PORT, () => {
     console.log(`HTTP server running on port ${PORT}`);
-    startBot().catch(console.error);
 });
+startBot().catch(console.error);
