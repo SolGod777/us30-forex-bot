@@ -2,7 +2,7 @@ import MetaApi, {
   MetatraderAccount,
   RpcMetaApiConnectionInstance,
 } from "metaapi.cloud-sdk";
-import { askAi } from "./ai";
+import { askAi, buildPrompt } from "./ai";
 import * as dotenv from "dotenv";
 import { fallbackSideSelctor } from "./utils";
 // import { manageTrailingStop } from "./manage";
@@ -66,7 +66,7 @@ async function checkAndTrade(
     console.log("Max open positions reached, skipping.");
     return;
   }
-  const numCandles = openCount === 0 ? 120 : 60;
+  const numCandles = openCount === 0 ? 300 : 200;
 
   const candles = await account.getHistoricalCandles(
     symbol,
@@ -81,16 +81,10 @@ async function checkAndTrade(
 
   let side: undefined | string = "";
   try {
-    const jsonData = JSON.stringify(candles);
-    const prompt = `
-      Here are the last ${numCandles} one-minute candles for US30 (in JSON format):
-      ${jsonData}
+    const slDistance = openCount > 0 ? 50 : 25;
+    const tpDistance = openCount > 0 ? 75 : 37;
 
-      Assume this is an index CFD with high volatility. Use basic price action patterns to make your BUY or SELL decision.
-      
-      Based on this data, should I open a BUY or SELL? 
-      Only reply with exactly 'BUY' or 'SELL'.
-`;
+    const prompt = buildPrompt(candles, slDistance, tpDistance);
 
     side = await askAi(prompt);
   } catch (e) {
