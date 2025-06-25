@@ -168,5 +168,6 @@ app.get("/", (req: any, res: any) => {
 
 app.listen(PORT, () => {
   console.log(`HTTP server running on port ${PORT}`);
-  startBot().catch(console.error);
 });
+
+startBot().catch(console.error);
