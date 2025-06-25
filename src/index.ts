@@ -66,7 +66,7 @@ async function checkAndTrade(
     console.log("Max open positions reached, skipping.");
     return;
   }
-  const numCandles = openCount === 0 ? 30 : 15;
+  const numCandles = openCount === 0 ? 120 : 60;
 
   const candles = await account.getHistoricalCandles(
     symbol,
