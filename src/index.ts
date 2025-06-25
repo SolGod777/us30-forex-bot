@@ -103,7 +103,7 @@ async function checkAndTrade(
       symbol,
       lotSize,
       stopLoss,
-      undefined
+      takeProfit
       // {
       //   trailingStopLoss: {
       //     threshold: {
@@ -124,7 +124,7 @@ async function checkAndTrade(
       symbol,
       lotSize,
       stopLoss,
-      undefined
+      takeProfit
       // {
       //   trailingStopLoss: {
       //     threshold: {
