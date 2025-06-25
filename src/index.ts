@@ -160,7 +160,7 @@ async function startBot() {
 }
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 app.get("/", (req: any, res: any) => {
   res.send("US30 Bot running");
