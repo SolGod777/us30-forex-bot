@@ -165,8 +165,8 @@ const PORT = process.env.PORT || 8080;
 app.get("/", (req: any, res: any) => {
   res.send("US30 Bot running");
 });
-startBot().catch(console.error);
 
 app.listen(PORT, () => {
   console.log(`HTTP server running on port ${PORT}`);
+  startBot().catch(console.error);
 });
