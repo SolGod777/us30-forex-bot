@@ -77,6 +77,7 @@ async function checkAndTrade(connection, account) {
     const positions = await connection.getPositions();
     const us30Positions = positions.filter((p) => p.symbol === symbol);
     const openCount = us30Positions.length;
+    console.log(us30Positions.length);
     if (openCount >= 3) {
         console.log("Max open positions reached, skipping.");
         return;
@@ -112,48 +113,23 @@ async function checkAndTrade(connection, account) {
     }
     // Determine risk points based on how many positions are already open
     let currentRiskPoints = riskPoints; // default full risk
+    let lotToUse = lotSize;
     if (openCount >= 1) {
         currentRiskPoints = riskPoints / 2;
+        lotToUse = 1;
     }
     console.log(`Trend: ${side.toUpperCase()}`);
     let stopLoss;
     let takeProfit;
     if (side === "buy") {
         stopLoss = currentPrice - currentRiskPoints;
-        takeProfit = currentPrice + rewardPoints;
-        await connection.createMarketBuyOrder(symbol, lotSize, stopLoss, takeProfit
-        // {
-        //   trailingStopLoss: {
-        //     threshold: {
-        //       thresholds: [
-        //         { threshold: 50, stopLoss: 20 },
-        //         { threshold: 100, stopLoss: 10 },
-        //         { threshold: 150, stopLoss: 5 },
-        //       ],
-        //       units: "RELATIVE_POINTS",
-        //     },
-        //   },
-        // }
-        );
+        takeProfit = currentPrice + currentRiskPoints * rewardMultiplier;
+        await connection.createMarketBuyOrder(symbol, lotToUse, stopLoss, takeProfit);
     }
     else {
         stopLoss = currentPrice + currentRiskPoints;
-        takeProfit = currentPrice - rewardPoints;
-        console.log(takeProfit);
-        await connection.createMarketSellOrder(symbol, lotSize, stopLoss, takeProfit
-        // {
-        //   trailingStopLoss: {
-        //     threshold: {
-        //       thresholds: [
-        //         { threshold: 50, stopLoss: 20 },
-        //         { threshold: 100, stopLoss: 10 },
-        //         { threshold: 150, stopLoss: 5 },
-        //       ],
-        //       units: "RELATIVE_POINTS",
-        //     },
-        //   },
-        // }
-        );
+        takeProfit = currentPrice - currentRiskPoints * rewardMultiplier;
+        await connection.createMarketSellOrder(symbol, lotToUse, stopLoss, takeProfit);
     }
     console.log(`Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`);
 }

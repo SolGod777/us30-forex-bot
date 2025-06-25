@@ -60,6 +60,8 @@ async function checkAndTrade(
   const us30Positions = positions.filter((p) => p.symbol === symbol);
   const openCount = us30Positions.length;
 
+  console.log(us30Positions.length);
+
   if (openCount >= 3) {
     console.log("Max open positions reached, skipping.");
     return;
@@ -117,7 +119,7 @@ async function checkAndTrade(
 
   if (side === "buy") {
     stopLoss = currentPrice - currentRiskPoints;
-    takeProfit = currentPrice + currentRiskPoints + rewardPoints;
+    takeProfit = currentPrice + currentRiskPoints * rewardMultiplier;
     await connection.createMarketBuyOrder(
       symbol,
       lotToUse,
