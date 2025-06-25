@@ -7,6 +7,9 @@ import * as dotenv from "dotenv";
 import { fallbackSideSelctor } from "./utils";
 // import { manageTrailingStop } from "./manage";
 import { flattenAllPositions, shouldFlattenNow } from "./close";
+
+import express from "express";
+
 dotenv.config();
 
 const METAAPI_TOKEN = process.env.METAAPI_TOKEN!;
@@ -154,17 +157,16 @@ async function startBot() {
       console.error("Error during trading cycle:", err);
     }
   }, CHECK_TRADE_INTERVAL); // every 15 minutes
-
-  // setInterval(async () => {
-  //   try {
-  //     if (shouldFlattenNow()) {
-  //       console.log("should flatten");
-  //       await flattenAllPositions(connection, symbol);
-  //     }
-  //   } catch (err) {
-  //     console.error("Error during trading cycle:", err);
-  //   }
-  // }, TRAILING_STOP_INTERVAL); // every 1 minutes
 }
 
-startBot().catch(console.error);
+const app = express();
+const PORT = 8080;
+
+app.get("/", (req: any, res: any) => {
+  res.send("US30 Bot running");
+});
+
+app.listen(PORT, () => {
+  console.log(`HTTP server running on port ${PORT}`);
+  startBot().catch(console.error);
+});
