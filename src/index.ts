@@ -8,7 +8,7 @@ import { fallbackSideSelctor } from "./utils";
 // import { manageTrailingStop } from "./manage";
 import { flattenAllPositions, shouldFlattenNow } from "./close";
 
-import express from "express";
+const express = require("express");
 
 dotenv.config();
 
