@@ -19,14 +19,11 @@ const TRADE_INTERVAL = process.env.TRADE_INTERVAL!;
 const CHECK_TRADE_INTERVAL = Number(TRADE_INTERVAL) * 60 * 1000;
 
 const lotSize = Number(process.env.LOT_SIZE) || 1;
-const numCandles = 15;
 const symbol = "US30";
 const timeframe = "1m";
 const riskPoints = Number(process.env.RISK_POINTS) || 50; // Adjust your risk
 const rewardMultiplier = Number(process.env.REWARD_MULTIPLIER) || 1.5;
 const rewardPoints = riskPoints * rewardMultiplier;
-
-console.log(lotSize, rewardMultiplier, rewardPoints);
 
 async function connectToAccount() {
   const api = new MetaApi(METAAPI_TOKEN);
@@ -47,17 +44,27 @@ async function checkAndTrade(
   connection: RpcMetaApiConnectionInstance,
   account: MetatraderAccount
 ) {
+  const now = new Date();
+  const hoursUtc = now.getUTCHours();
+
+  // Only run between 11:00 - 20:00 UTC
+  if (hoursUtc < 11 || hoursUtc >= 20) {
+    console.log("Outside trading hours, skipping trade check.");
+    return;
+  }
+
   console.log("Checking market...");
 
   // Check if there’s already open position
   const positions = await connection.getPositions();
   const us30Positions = positions.filter((p) => p.symbol === symbol);
-  if (us30Positions.length > 0) {
-    console.log("Existing position found, skipping trade.");
+  const openCount = us30Positions.length;
+
+  if (openCount >= 3) {
+    console.log("Max open positions reached, skipping.");
     return;
   }
-
-  const now = new Date();
+  const numCandles = openCount === 0 ? 30 : 15;
 
   const candles = await account.getHistoricalCandles(
     symbol,
@@ -95,53 +102,37 @@ async function checkAndTrade(
     side = fallbackSideSelctor(candles, currentPrice);
   }
 
+  // Determine risk points based on how many positions are already open
+  let currentRiskPoints = riskPoints; // default full risk
+  let lotToUse = lotSize;
+  if (openCount >= 1) {
+    currentRiskPoints = riskPoints / 2;
+    lotToUse = 1;
+  }
+
   console.log(`Trend: ${side.toUpperCase()}`);
 
   let stopLoss: number;
   let takeProfit: number;
 
   if (side === "buy") {
-    stopLoss = currentPrice - riskPoints;
+    stopLoss = currentPrice - currentRiskPoints;
     takeProfit = currentPrice + rewardPoints;
     await connection.createMarketBuyOrder(
       symbol,
-      lotSize,
+      lotToUse,
       stopLoss,
       takeProfit
-      // {
-      //   trailingStopLoss: {
-      //     threshold: {
-      //       thresholds: [
-      //         { threshold: 50, stopLoss: 20 },
-      //         { threshold: 100, stopLoss: 10 },
-      //         { threshold: 150, stopLoss: 5 },
-      //       ],
-      //       units: "RELATIVE_POINTS",
-      //     },
-      //   },
-      // }
     );
   } else {
-    stopLoss = currentPrice + riskPoints;
+    stopLoss = currentPrice + currentRiskPoints;
     takeProfit = currentPrice - rewardPoints;
     console.log(takeProfit);
     await connection.createMarketSellOrder(
       symbol,
-      lotSize,
+      lotToUse,
       stopLoss,
       takeProfit
-      // {
-      //   trailingStopLoss: {
-      //     threshold: {
-      //       thresholds: [
-      //         { threshold: 50, stopLoss: 20 },
-      //         { threshold: 100, stopLoss: 10 },
-      //         { threshold: 150, stopLoss: 5 },
-      //       ],
-      //       units: "RELATIVE_POINTS",
-      //     },
-      //   },
-      // }
     );
   }
 
