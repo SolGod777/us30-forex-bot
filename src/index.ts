@@ -117,7 +117,7 @@ async function checkAndTrade(
 
   if (side === "buy") {
     stopLoss = currentPrice - currentRiskPoints;
-    takeProfit = currentPrice + rewardPoints;
+    takeProfit = currentPrice + currentRiskPoints + rewardPoints;
     await connection.createMarketBuyOrder(
       symbol,
       lotToUse,
@@ -126,8 +126,7 @@ async function checkAndTrade(
     );
   } else {
     stopLoss = currentPrice + currentRiskPoints;
-    takeProfit = currentPrice - rewardPoints;
-    console.log(takeProfit);
+    takeProfit = currentPrice - currentRiskPoints * rewardMultiplier;
     await connection.createMarketSellOrder(
       symbol,
       lotToUse,
