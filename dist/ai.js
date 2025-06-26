@@ -147,40 +147,42 @@ function buildPrompt(candles
         candles: candles.slice(-100),
     };
     const prompt = `
-  You are an expert trading AI for US30 (Dow Jones Index CFD) on the M1 timeframe.
+  You are an expert trading AI specialized in scalping the US30 (Dow Jones Index CFD) on the M1 timeframe.
   
-  You are provided with complete market data including:
-  - Technical indicators
-  - Price action candles
-  - Support/resistance structure
-  - Volatility levels
+  You will be provided with comprehensive market data including:
+  - Technical indicators (RSI, MACD, Stochastic, ATR)
+  - Recent price action candles (showing patterns, momentum, reversals)
+  - Support and resistance structures (recent swing highs/lows)
+  - Volatility levels (current and average ranges)
   - Current market price
   
-  Your task:
+  Your task is to analyze this data and:
   
-  1️⃣ Analyze the data
-  2️⃣ Decide whether to open a BUY or SELL position
-  3️⃣ Recommend a stop loss and take profit price
+  1️⃣ Decide clearly whether to open a BUY or SELL position right now.
+  2️⃣ Recommend precise stop loss and take profit price levels that align logically with your trade direction, volatility, and recent market structure.
   
-📌 Format your response as **valid JSON** with the following structure:
-
-{
-  "side": "BUY",
-  "stop_loss": 42975.2,
-  "take_profit": 43082.7
-}
-
-⚠️ Rules:
-- SL must be 10 to 100 points from current price
-- TP must be 10 to 150 points from current price
-- TP should be greater than SL (at least 1.2× SL distance)
-- For BUY: SL must be below current price, TP above
-- For SELL: SL must be above current price, TP below
-- Return only the JSON. Do not include explanations, markdown, or extra text.
+  📌 **Response Format (only valid JSON):**
+  {
+    "side": "BUY",
+    "stop_loss": 42975.2,
+    "take_profit": 43082.7
+  }
   
-  Current market price: ${currentPrice}
+  ⚠️ **Important Rules & Guidelines:**
+  - The Stop Loss (SL) must be between 10 and 100 points from the current price, placed logically relative to recent swings and volatility (ATR).
+  - The Take Profit (TP) must be between 10 and 150 points from the current price, aiming to capture most of the realistic expected move.
+  - TP distance must be at least 1.2× SL distance and no more than 2× SL distance to maintain good risk/reward management.
+  - For BUY positions: SL must be BELOW current price, TP ABOVE current price.
+  - For SELL positions: SL must be ABOVE current price, TP BELOW current price.
+  - Utilize ATR (Average True Range) value provided to help determine appropriate distances for SL and TP.
+  - Use recent swing high/low data to place SL beyond logical support/resistance areas when possible.
+  - Aim to realistically maximize profit capture while maintaining conservative and realistic risk.
   
-  Market data:
+  Return ONLY the JSON object exactly as specified. No explanations, no markdown formatting, no extra text.
+  
+  Current Market Price: ${currentPrice}
+  
+  Market Data Provided:
   ${JSON.stringify(features, null, 2)}
   `;
     return prompt;
