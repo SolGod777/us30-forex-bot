@@ -39,7 +39,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const metaapi_cloud_sdk_1 = __importDefault(require("metaapi.cloud-sdk"));
 const ai_1 = require("./ai");
 const dotenv = __importStar(require("dotenv"));
-const utils_1 = require("./utils");
 const express_1 = __importDefault(require("express"));
 dotenv.config();
 const METAAPI_TOKEN = process.env.METAAPI_TOKEN;
@@ -68,10 +67,10 @@ async function checkAndTrade(connection, account) {
     const now = new Date();
     const hoursUtc = now.getUTCHours();
     // Only run between 11:00 - 20:00 UTC
-    if (hoursUtc < 11 || hoursUtc >= 20) {
-        console.log("Outside trading hours, skipping trade check.");
-        return;
-    }
+    // if (hoursUtc < 11 || hoursUtc >= 20) {
+    //   console.log("Outside trading hours, skipping trade check.");
+    //   return;
+    // }
     console.log("Checking market...");
     // Check if there’s already open position
     const positions = await connection.getPositions();
@@ -82,35 +81,27 @@ async function checkAndTrade(connection, account) {
         console.log("Max open positions reached, skipping.");
         return;
     }
-    const numCandles = openCount === 0 ? 30 : 15;
+    const numCandles = openCount === 0 ? 300 : 200;
     const candles = await account.getHistoricalCandles(symbol, timeframe, now, numCandles);
     if (candles.length < numCandles) {
         console.log("Not enough candles.");
         return;
     }
-    let side = "";
+    let aiParams = undefined;
     try {
-        const jsonData = JSON.stringify(candles);
-        const prompt = `
-      Here are the last ${numCandles} one-minute candles for US30 (in JSON format):
-      ${jsonData}
-
-      Assume this is an index CFD with high volatility. Use basic price action patterns to make your BUY or SELL decision.
-      
-      Based on this data, should I open a BUY or SELL? 
-      Only reply with exactly 'BUY' or 'SELL'.
-`;
-        side = await (0, ai_1.askAi)(prompt);
+        // const slDistance = openCount > 0 ? 50 : 25;
+        // const tpDistance = openCount > 0 ? 75 : 37;
+        const prompt = (0, ai_1.buildPrompt)(candles);
+        aiParams = await (0, ai_1.askAi)(prompt);
     }
     catch (e) {
         console.log("ChatGPT error: ", e);
     }
+    if (!aiParams)
+        throw new Error("AI params not found.");
     const price = await connection.getSymbolPrice(symbol, false);
     const currentPrice = price.bid;
-    // fallback without AI
-    if (!side) {
-        side = (0, utils_1.fallbackSideSelctor)(candles, currentPrice);
-    }
+    const side = aiParams.side;
     // Determine risk points based on how many positions are already open
     let currentRiskPoints = riskPoints; // default full risk
     let lotToUse = lotSize;
@@ -122,13 +113,13 @@ async function checkAndTrade(connection, account) {
     let stopLoss;
     let takeProfit;
     if (side === "buy") {
-        stopLoss = currentPrice - currentRiskPoints;
-        takeProfit = currentPrice + currentRiskPoints * rewardMultiplier;
+        stopLoss = aiParams.stopLoss; // currentPrice - currentRiskPoints;
+        takeProfit = aiParams.takeProfit; //currentPrice + currentRiskPoints * rewardMultiplier;
         await connection.createMarketBuyOrder(symbol, lotToUse, stopLoss, takeProfit);
     }
     else {
-        stopLoss = currentPrice + currentRiskPoints;
-        takeProfit = currentPrice - currentRiskPoints * rewardMultiplier;
+        stopLoss = aiParams.stopLoss; //currentPrice + currentRiskPoints;
+        takeProfit = aiParams.takeProfit; //currentPrice - currentRiskPoints * rewardMultiplier;
         await connection.createMarketSellOrder(symbol, lotToUse, stopLoss, takeProfit);
     }
     console.log(`Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`);
