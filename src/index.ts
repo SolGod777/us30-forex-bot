@@ -40,11 +40,9 @@ async function connectToAccount() {
   return { connection: c, account };
 }
 
-async function checkAndTrade(
-  connection: RpcMetaApiConnectionInstance,
-  account: MetatraderAccount
-) {
-  
+async function checkAndTrade() {
+  const { connection, account } = await connectToAccount();
+
   const now = new Date();
   const hoursUtc = now.getUTCHours();
 
@@ -136,18 +134,17 @@ async function checkAndTrade(
   console.log(
     `Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`
   );
+  await connection.close();
 }
 
 async function startBot() {
-  const { connection, account } = await connectToAccount();
-
   // Run immediately once
-  await checkAndTrade(connection, account);
+  await checkAndTrade();
 
   // Then run every 15 minutes
   setInterval(async () => {
     try {
-      await checkAndTrade(connection, account);
+      await checkAndTrade();
     } catch (err) {
       console.error("Error during trading cycle:", err);
     }
