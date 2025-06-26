@@ -64,6 +64,7 @@ async function connectToAccount() {
     return { connection: c, account };
 }
 async function checkAndTrade(connection, account) {
+    await connection.waitSynchronized();
     const now = new Date();
     const hoursUtc = now.getUTCHours();
     // Only run between 11:00 - 20:00 UTC

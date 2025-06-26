@@ -164,9 +164,10 @@ export function buildPrompt(
 ⚠️ Rules:
 - SL must be 10 to 100 points from current price
 - TP must be 10 to 150 points from current price
-- TP should be greater than SL (at least 1.2× SL distance)
+- TP distance (in points) must be at least 1.2x SL distance and no more than 2x SL distance
 - For BUY: SL must be below current price, TP above
 - For SELL: SL must be above current price, TP below
+- Try to choose a TP that captures the majority of the expected move based on current volatility and recent structure
 - Return only the JSON. Do not include explanations, markdown, or extra text.
   
   Current market price: ${currentPrice}
