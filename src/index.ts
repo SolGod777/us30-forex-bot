@@ -49,10 +49,10 @@ async function checkAndTrade(
   const hoursUtc = now.getUTCHours();
 
   // Only run between 11:00 - 20:00 UTC
-  // if (hoursUtc < 11 || hoursUtc >= 20) {
-  //   console.log("Outside trading hours, skipping trade check.");
-  //   return;
-  // }
+  if (hoursUtc < 11 || hoursUtc >= 20) {
+    console.log("Outside trading hours, skipping trade check.");
+    return;
+  }
 
   console.log("Checking market...");
 
