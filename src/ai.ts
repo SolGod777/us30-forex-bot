@@ -161,8 +161,8 @@ export function buildPrompt(
   
   ⚠️ **Important Rules & Guidelines:**
   - The Stop Loss (SL) must be between 30 and 100 points from the current price, placed logically relative to recent swings and volatility (ATR).
-  - The Take Profit (TP) must be between 20 and 150 points from the current price, aiming to capture most of the realistic expected move.
-  - TP distance must be at least 1.2× SL distance and no more than 2× SL distance to maintain good risk/reward management.
+  - The Take Profit (TP) must be between 20 and 250 points from the current price, aiming to capture most of the realistic expected move.
+  - TP distance must be at least 1.2× SL distance and no more than 3× SL distance to maintain good risk/reward management.
   - For BUY positions: SL must be BELOW current price, TP ABOVE current price.
   - For SELL positions: SL must be ABOVE current price, TP BELOW current price.
   - Utilize ATR (Average True Range) value provided to help determine appropriate distances for SL and TP.
