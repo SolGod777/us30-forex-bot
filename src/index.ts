@@ -16,7 +16,7 @@ const METAAPI_TOKEN = process.env.METAAPI_TOKEN!;
 const ACCOUNT_ID = process.env.ACCOUNT_ID!;
 const TRADE_INTERVAL = process.env.TRADE_INTERVAL!;
 
-const CHECK_TRADE_INTERVAL = Number(TRADE_INTERVAL) * 60 * 1000;
+const CHECK_TRADE_INTERVAL = 5 * 60 * 1000;
 
 const lotSize = Number(process.env.LOT_SIZE) || 1;
 const symbol = "US30";
@@ -40,10 +40,7 @@ async function connectToAccount() {
   return { connection: c, account };
 }
 
-async function checkAndTrade(
-  connection: RpcMetaApiConnectionInstance,
-  account: MetatraderAccount
-) {
+async function checkAndTrade() {
   const now = new Date();
   const hoursUtc = now.getUTCHours();
 
@@ -52,6 +49,7 @@ async function checkAndTrade(
     console.log("Outside trading hours, skipping trade check.");
     return;
   }
+  const { connection, account } = await connectToAccount();
 
   console.log("Checking market...");
 
@@ -135,18 +133,22 @@ async function checkAndTrade(
   console.log(
     `Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`
   );
+  await connection.close();
+  await account.remove();
+  await account.waitRemoved();
 }
 
 async function startBot() {
-  const { connection, account } = await connectToAccount();
-
   // Run immediately once
-  await checkAndTrade(connection, account);
-
+  try {
+    await checkAndTrade();
+  } catch (e) {
+    console.log("start Error", e);
+  }
   // Then run every 15 minutes
   setInterval(async () => {
     try {
-      await checkAndTrade(connection, account);
+      await checkAndTrade();
     } catch (err) {
       console.error("Error during trading cycle:", err);
     }

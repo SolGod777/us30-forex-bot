@@ -168,7 +168,8 @@ export function buildPrompt(
   - Utilize ATR (Average True Range) value provided to help determine appropriate distances for SL and TP.
   - Use recent swing high/low data to place SL beyond logical support/resistance areas when possible.
   - Aim to realistically maximize profit capture while maintaining conservative and realistic risk.
-  
+  - Try to avoid going against the last 5 minutes trend unless the ATR supports it
+
   Return ONLY the JSON object exactly as specified. No explanations, no markdown formatting, no extra text.
   
   Current Market Price: ${currentPrice}
