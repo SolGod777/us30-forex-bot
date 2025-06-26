@@ -79,24 +79,25 @@ async function checkAndTrade(
     return;
   }
 
-  let side: undefined | string = "";
+  let aiParams:
+    | { side: "buy" | "sell"; stopLoss: number; takeProfit: number }
+    | undefined = undefined;
   try {
-    const slDistance = openCount > 0 ? 50 : 25;
-    const tpDistance = openCount > 0 ? 75 : 37;
+    // const slDistance = openCount > 0 ? 50 : 25;
+    // const tpDistance = openCount > 0 ? 75 : 37;
 
-    const prompt = buildPrompt(candles, slDistance, tpDistance);
+    const prompt = buildPrompt(candles);
 
-    side = await askAi(prompt);
+    aiParams = await askAi(prompt);
   } catch (e) {
     console.log("ChatGPT error: ", e);
   }
+
+  if (!aiParams) throw new Error("AI params not found.");
   const price = await connection.getSymbolPrice(symbol, false);
   const currentPrice = price.bid;
 
-  // fallback without AI
-  if (!side) {
-    side = fallbackSideSelctor(candles, currentPrice);
-  }
+  const side = aiParams.side;
 
   // Determine risk points based on how many positions are already open
   let currentRiskPoints = riskPoints; // default full risk
@@ -112,8 +113,8 @@ async function checkAndTrade(
   let takeProfit: number;
 
   if (side === "buy") {
-    stopLoss = currentPrice - currentRiskPoints;
-    takeProfit = currentPrice + currentRiskPoints * rewardMultiplier;
+    stopLoss = aiParams.stopLoss; // currentPrice - currentRiskPoints;
+    takeProfit = aiParams.takeProfit; //currentPrice + currentRiskPoints * rewardMultiplier;
     await connection.createMarketBuyOrder(
       symbol,
       lotToUse,
@@ -121,8 +122,8 @@ async function checkAndTrade(
       takeProfit
     );
   } else {
-    stopLoss = currentPrice + currentRiskPoints;
-    takeProfit = currentPrice - currentRiskPoints * rewardMultiplier;
+    stopLoss = aiParams.stopLoss; //currentPrice + currentRiskPoints;
+    takeProfit = aiParams.takeProfit; //currentPrice - currentRiskPoints * rewardMultiplier;
     await connection.createMarketSellOrder(
       symbol,
       lotToUse,

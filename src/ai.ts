@@ -4,7 +4,11 @@ dotenv.config();
 
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
 
-export const askAi = async (prompt: string): Promise<string | undefined> => {
+export const askAi = async (
+  prompt: string
+): Promise<
+  { side: "buy" | "sell"; stopLoss: number; takeProfit: number } | undefined
+> => {
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
     {
@@ -21,17 +25,21 @@ export const askAi = async (prompt: string): Promise<string | undefined> => {
   );
 
   const reply = response.data.choices[0].message.content;
-  console.log("GPT response:", reply);
+  console.log("GPT response:\n" + reply);
 
-  let side: undefined | "buy" | "sell";
-  if (reply.toLowerCase().includes("buy")) {
-    side = "buy";
-  } else if (reply.toLowerCase().includes("sell")) {
-    side = "sell";
-  } else {
-    console.log("GPT returned unclear result.");
+  try {
+    const parsed = JSON.parse(reply || "{}");
+    const side = parsed.side?.toLowerCase() as "buy" | "sell";
+    const stopLoss =
+      typeof parsed.stop_loss === "number" ? parsed.stop_loss : undefined;
+    const takeProfit =
+      typeof parsed.take_profit === "number" ? parsed.take_profit : undefined;
+
+    return { side, stopLoss, takeProfit };
+  } catch (e) {
+    console.error("Failed to parse GPT response as JSON", e);
+    throw new Error(`GPT error: ${e}`);
   }
-  return side;
 };
 
 import { RSI, SMA, Stochastic, MACD, ATR } from "technicalindicators";
@@ -46,9 +54,9 @@ type Candle = {
 };
 
 export function buildPrompt(
-  candles: Candle[],
-  slDistance: number,
-  tpDistance: number
+  candles: Candle[]
+  // slDistance: number,
+  // tpDistance: number
 ): string {
   if (candles.length < 200) {
     throw new Error("Need at least 200 candles");
@@ -93,8 +101,6 @@ export function buildPrompt(
     symbol: "US30",
     timeframe: "M1",
     current_price: currentPrice,
-    sl_distance: slDistance,
-    tp_distance: tpDistance,
     technical_indicators: {
       rsi14: rsi,
       stochasticK: stoch?.k,
@@ -124,26 +130,42 @@ export function buildPrompt(
   };
 
   const prompt = `
-You are an expert trading AI for US30 (Dow Jones Index CFD) on the M1 timeframe.
+  You are an expert trading AI for US30 (Dow Jones Index CFD) on the M1 timeframe.
+  
+  You are provided with complete market data including:
+  - Technical indicators
+  - Price action candles
+  - Support/resistance structure
+  - Volatility levels
+  - Current market price
+  
+  Your task:
+  
+  1️⃣ Analyze the data
+  2️⃣ Decide whether to open a BUY or SELL position
+  3️⃣ Recommend a stop loss and take profit price
+  
+📌 Format your response as **valid JSON** with the following structure:
 
-You are provided with complete market data including:
-- Technical indicators
-- Price action candles
-- Support/resistance structure
-- Volatility levels
-- Stop loss and take profit distances
+{
+  "side": "BUY",
+  "stop_loss": 42975.2,
+  "take_profit": 43082.7
+}
 
-Your task:
-
-1️⃣ Analyze all data carefully.
-2️⃣ Use price action patterns, trend alignment, momentum indicators, volatility, and SL/TP positioning.
-3️⃣ Decide whether to open a BUY or SELL position right now.
-
-Only reply with one word: BUY or SELL (in ALL CAPS, no explanation).
-
-Market data:
-${JSON.stringify(features, null, 2)}
-`;
+⚠️ Rules:
+- SL must be 10 to 100 points from current price
+- TP must be 10 to 150 points from current price
+- TP should be greater than SL (at least 1.2× SL distance)
+- For BUY: SL must be below current price, TP above
+- For SELL: SL must be above current price, TP below
+- Return only the JSON. Do not include explanations, markdown, or extra text.
+  
+  Current market price: ${currentPrice}
+  
+  Market data:
+  ${JSON.stringify(features, null, 2)}
+  `;
 
   return prompt;
 }
