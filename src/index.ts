@@ -44,6 +44,7 @@ async function checkAndTrade(
   connection: RpcMetaApiConnectionInstance,
   account: MetatraderAccount
 ) {
+  
   const now = new Date();
   const hoursUtc = now.getUTCHours();
 
