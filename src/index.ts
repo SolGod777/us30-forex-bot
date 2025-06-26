@@ -41,8 +41,6 @@ async function connectToAccount() {
 }
 
 async function checkAndTrade() {
-  const { connection, account } = await connectToAccount();
-
   const now = new Date();
   const hoursUtc = now.getUTCHours();
 
@@ -51,6 +49,7 @@ async function checkAndTrade() {
     console.log("Outside trading hours, skipping trade check.");
     return;
   }
+  const { connection, account } = await connectToAccount();
 
   console.log("Checking market...");
 
