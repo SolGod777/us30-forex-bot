@@ -44,7 +44,7 @@ dotenv.config();
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
 const askAi = async (prompt) => {
     const response = await axios_1.default.post("https://api.openai.com/v1/chat/completions", {
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
     }, {
@@ -53,8 +53,15 @@ const askAi = async (prompt) => {
             "Content-Type": "application/json",
         },
     });
-    const reply = response.data.choices[0].message.content;
+    let reply = response.data.choices[0].message.content;
     console.log("GPT response:\n" + reply);
+    // ✅ Remove Markdown code block if present
+    if (reply.startsWith("```")) {
+        reply = reply
+            .replace(/```(?:json)?/gi, "")
+            .replace(/```$/, "")
+            .trim();
+    }
     try {
         const parsed = JSON.parse(reply || "{}");
         const side = parsed.side?.toLowerCase();

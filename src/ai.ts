@@ -24,8 +24,16 @@ export const askAi = async (
     }
   );
 
-  const reply = response.data.choices[0].message.content;
+  let reply = response.data.choices[0].message.content;
   console.log("GPT response:\n" + reply);
+
+  // ✅ Remove Markdown code block if present
+  if (reply.startsWith("```")) {
+    reply = reply
+      .replace(/```(?:json)?/gi, "")
+      .replace(/```$/, "")
+      .trim();
+  }
 
   try {
     const parsed = JSON.parse(reply || "{}");
