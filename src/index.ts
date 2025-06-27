@@ -39,12 +39,14 @@ export async function fetchCandles(
 }
 
 // === Dummy AI: Decide BUY/SELL ===
-async function decideAction(
-  candles: OandaRawCandle[]
-): Promise<"BUY" | "SELL"> {
+async function decideAction(candles: OandaRawCandle[]): Promise<{
+  side: "BUY" | "SELL";
+  slPips: number;
+  tpPips: number;
+}> {
   const prompt = buildPrompt(candles);
-  const side = await askAi(prompt);
-  return side;
+  const action = await askAi(prompt);
+  return action;
 }
 export async function fetchPricingAndBuildSLTP(
   instrument: string,
@@ -155,17 +157,16 @@ async function checkAndTrade() {
     const candles = await fetchCandles(200);
     const action = await decideAction(candles);
 
-    console.log(`[${new Date().toISOString()}] Decision: ${action}`);
-    const config = await fetchPricingAndBuildSLTP(Instrument, action);
+    const config = await fetchPricingAndBuildSLTP(Instrument, action.side);
     await placeMarketOrder(
-      action,
+      action.side,
       Number(config.entryPrice),
-      Number(SL),
-      Number(TP)
+      Number(action.slPips),
+      Number(action.tpPips)
     );
 
     console.log(
-      `Executed ${action} order. SL: ${config.stopLoss}, TP: ${config.takeProfit}`
+      `Executed ${action.side} order. SL: ${action.slPips}, TP: ${action.tpPips}`
     );
   } catch (err) {
     console.error("Bot error:", err);
@@ -191,10 +192,10 @@ export async function fetchOpenTrades() {
   }[];
 }
 
-function startBot() {
-  checkAndTrade();
-  setInterval(checkAndTrade, Number(process.env.TRADE_INTERVAL!) * 60 * 1000);
-}
+// function startBot() {
+//   checkAndTrade();
+//   setInterval(checkAndTrade, Number(process.env.TRADE_INTERVAL!) * 60 * 1000);
+// }
 import express from "express";
 const app = express();
 const port = process.env.PORT || 3000;
@@ -210,4 +211,8 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on 8080`);
 });
-startBot();
+
+app.post("/run-bot", async (req, res) => {
+  await checkAndTrade();
+  res.send("Bot ran.");
+});

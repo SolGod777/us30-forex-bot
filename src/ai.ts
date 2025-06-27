@@ -4,7 +4,13 @@ dotenv.config();
 
 const OPEN_AI_KEY = process.env.OPEN_AI_KEY!;
 
-export const askAi = async (prompt: string): Promise<"BUY" | "SELL"> => {
+export const askAi = async (
+  prompt: string
+): Promise<{
+  side: "BUY" | "SELL";
+  slPips: number;
+  tpPips: number;
+}> => {
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
     {
@@ -20,14 +26,35 @@ export const askAi = async (prompt: string): Promise<"BUY" | "SELL"> => {
     }
   );
 
-  let reply = response.data.choices[0].message.content?.trim().toUpperCase();
+  let content = response.data.choices[0].message.content?.trim();
+  console.log("GPT raw response:", content);
 
-  console.log("GPT raw response:", reply);
+  // 🔧 Remove Markdown code block markers if present
+  if (content?.startsWith("```json")) {
+    content = content.replace(/```json|```/g, "").trim();
+  }
 
-  if (reply === "BUY" || reply === "SELL") {
-    return reply;
-  } else {
-    throw new Error(`Invalid GPT reply: ${reply}`);
+  try {
+    const parsed: { side: "BUY" | "SELL"; slPips: number; tpPips: number } =
+      JSON.parse(content!);
+    if (
+      parsed &&
+      (parsed.side === "BUY" || parsed.side === "SELL") &&
+      typeof parsed.slPips === "number" &&
+      typeof parsed.tpPips === "number"
+    ) {
+      const clamp = (value: number, min: number, max: number) =>
+        Math.max(min, Math.min(value, max));
+
+      const sl = clamp(parsed.slPips, 5, 50);
+      const tp = clamp(parsed.tpPips, 5, 100);
+
+      return { ...parsed, slPips: sl, tpPips: tp };
+    } else {
+      throw new Error("Invalid AI trade decision format.");
+    }
+  } catch (e) {
+    throw new Error(`Failed to parse AI response: ${content}`);
   }
 };
 
@@ -35,13 +62,12 @@ import { RSI, SMA, Stochastic, MACD, ATR } from "technicalindicators";
 import { OandaRawCandle } from "./types";
 
 export function buildPrompt(candles: OandaRawCandle[]): string {
-  if (candles.length < 200) {
-    throw new Error("Need at least 200 candles");
-  }
+  if (candles.length < 200) throw new Error("Need at least 200 candles");
 
   const closes = candles.map((c) => parseFloat(c.mid.c));
   const highs = candles.map((c) => parseFloat(c.mid.h));
   const lows = candles.map((c) => parseFloat(c.mid.l));
+  const opens = candles.map((c) => parseFloat(c.mid.o));
 
   const rsi = RSI.calculate({ period: 14, values: closes }).slice(-1)[0];
   const stoch = Stochastic.calculate({
@@ -69,14 +95,28 @@ export function buildPrompt(candles: OandaRawCandle[]): string {
   const ma200 = SMA.calculate({ period: 200, values: closes }).slice(-1)[0];
 
   const currentPrice = closes[closes.length - 1];
-  const recentCandles = candles.slice(-50);
-  const recentHigh = Math.max(...recentCandles.map((c) => parseFloat(c.mid.h)));
-  const recentLow = Math.min(...recentCandles.map((c) => parseFloat(c.mid.l)));
   const lastCandle = candles[candles.length - 1];
+  const recent = candles.slice(-20);
+  const recentHigh = Math.max(...recent.map((c) => parseFloat(c.mid.h)));
+  const recentLow = Math.min(...recent.map((c) => parseFloat(c.mid.l)));
+
+  const bullishCount = recent.filter(
+    (c) => parseFloat(c.mid.c) > parseFloat(c.mid.o)
+  ).length;
+  const bearishCount = 20 - bullishCount;
+
+  const priceMomentum =
+    recentHigh - recentLow < (atr ?? 0) * 2 ? "RANGE" : "BREAKOUT";
+
+  const utcHour = new Date().getUTCHours();
+  let session = "Asia";
+  if (utcHour >= 7 && utcHour < 15) session = "London";
+  if (utcHour >= 13 && utcHour < 21) session = "New York";
 
   const features = {
     symbol: "USD/JPY",
     timeframe: "M1",
+    session,
     current_price: currentPrice,
     technical_indicators: {
       rsi14: rsi,
@@ -97,32 +137,41 @@ export function buildPrompt(candles: OandaRawCandle[]): string {
       recent_swing_high: recentHigh,
       recent_swing_low: recentLow,
     },
+    momentum: {
+      price_momentum: priceMomentum,
+      recent_bullish_candles: bullishCount,
+      recent_bearish_candles: bearishCount,
+    },
     volatility: {
       current_range: +(
         parseFloat(lastCandle.mid.h) - parseFloat(lastCandle.mid.l)
       ).toFixed(2),
-      average_range: +((recentHigh - recentLow) / 50).toFixed(2),
+      average_range: +((recentHigh - recentLow) / 20).toFixed(2),
     },
   };
 
-  const prompt = `
+  return `
 You are an expert forex scalping AI trading USD/JPY on the 1-minute chart.
 
 You are provided with:
 - Technical indicators (RSI, MACD, Stochastic, ATR)
-- Trend direction using moving averages
-- Recent candle and price structure
-- Volatility measures
+- Trend direction via moving averages
+- Candle sentiment, structure, momentum, and volatility
+- Active market session (Asia, London, or New York)
 
-Your only task is to analyze this data and reply with exactly one word: **"BUY"** or **"SELL"** — nothing else.
+Your job:
+1. Decide "BUY" or "SELL"
+2. Recommend SL and TP values (in pips) based on structure and volatility
 
-Current Market Price: ${currentPrice}
+Reply only in valid JSON format like:
+{
+  "side": "BUY",
+  "slPips": 12,
+  "tpPips": 20
+}
 
+Current Price: ${currentPrice}
 Market Data:
 ${JSON.stringify(features, null, 2)}
-
-Reply with exactly one word: "BUY" or "SELL"
 `;
-
-  return prompt;
 }
