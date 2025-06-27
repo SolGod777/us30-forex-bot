@@ -48,6 +48,9 @@ const ACCOUNT_ID = process.env.ACCOUNT_ID;
 const BASE_URL = "https://api-fxpractice.oanda.com/v3";
 const UNITS = Number(process.env.LOT_SIZE);
 const Instrument = "USD_JPY";
+const SIZE = 100000;
+const SL = 3;
+const TP = 4;
 const HEADERS = {
     Authorization: `Bearer ${API_KEY}`,
     "Content-Type": "application/json",
@@ -69,7 +72,7 @@ async function decideAction(candles) {
     const side = await (0, ai_1.askAi)(prompt);
     return side;
 }
-async function fetchPricingAndBuildSLTP(instrument, side, stopPips = 5, takePips = 10) {
+async function fetchPricingAndBuildSLTP(instrument, side, stopPips = 3, takePips = 5) {
     const res = await axios_1.default.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/pricing`, {
         headers: {
             Authorization: `Bearer ${API_KEY}`,
@@ -107,7 +110,7 @@ async function fetchPricingAndBuildSLTP(instrument, side, stopPips = 5, takePips
     };
 }
 function buildOrderPayload(side, entryPrice, slPips, tpPips) {
-    const units = side === "BUY" ? 40000 : -40000;
+    const units = side === "BUY" ? SIZE : -SIZE;
     const pipValue = 0.01; // for JPY pairs
     const slPrice = side === "BUY"
         ? (entryPrice - slPips * pipValue).toFixed(3)
@@ -145,7 +148,7 @@ async function checkAndTrade() {
         const action = await decideAction(candles);
         console.log(`[${new Date().toISOString()}] Decision: ${action}`);
         const config = await fetchPricingAndBuildSLTP(Instrument, action);
-        await placeMarketOrder(action, Number(config.entryPrice), Number(config.stopLoss), Number(config.takeProfit));
+        await placeMarketOrder(action, Number(config.entryPrice), Number(SL), Number(TP));
         console.log(`Executed ${action} order. SL: ${config.stopLoss}, TP: ${config.takeProfit}`);
     }
     catch (err) {

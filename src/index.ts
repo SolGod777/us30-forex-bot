@@ -10,6 +10,9 @@ const ACCOUNT_ID = process.env.ACCOUNT_ID!;
 const BASE_URL = "https://api-fxpractice.oanda.com/v3";
 const UNITS = Number(process.env.LOT_SIZE!);
 const Instrument = "USD_JPY";
+const SIZE = 100_000;
+const SL = 3;
+const TP = 4;
 
 const HEADERS = {
   Authorization: `Bearer ${API_KEY}`,
@@ -46,8 +49,8 @@ async function decideAction(
 export async function fetchPricingAndBuildSLTP(
   instrument: string,
   side: "BUY" | "SELL",
-  stopPips: number = 5,
-  takePips: number = 10
+  stopPips: number = 3,
+  takePips: number = 5
 ) {
   const res = await axios.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/pricing`, {
     headers: {
@@ -99,7 +102,7 @@ function buildOrderPayload(
   slPips: number,
   tpPips: number
 ) {
-  const units = side === "BUY" ? 60000 : -60000;
+  const units = side === "BUY" ? SIZE : -SIZE;
   const pipValue = 0.01; // for JPY pairs
 
   const slPrice =
@@ -157,8 +160,8 @@ async function checkAndTrade() {
     await placeMarketOrder(
       action,
       Number(config.entryPrice),
-      Number(config.stopLoss),
-      Number(config.takeProfit)
+      Number(SL),
+      Number(TP)
     );
 
     console.log(
