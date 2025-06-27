@@ -210,4 +210,8 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Server running on 8080`);
 });
-startBot();
+
+app.post("/run-bot", async (req, res) => {
+  await checkAndTrade();
+  res.send("Bot ran.");
+});
