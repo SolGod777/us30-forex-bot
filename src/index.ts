@@ -1,169 +1,196 @@
-import MetaApi, {
-  MetatraderAccount,
-  RpcMetaApiConnectionInstance,
-} from "metaapi.cloud-sdk";
-import { askAi, buildPrompt } from "./ai";
+import axios from "axios";
 import * as dotenv from "dotenv";
-import { fallbackSideSelctor } from "./utils";
-// import { manageTrailingStop } from "./manage";
-import { flattenAllPositions, shouldFlattenNow } from "./close";
-
-import express from "express";
+import { askAi, buildPrompt } from "./ai";
+import { OandaCandleResponse, OandaRawCandle } from "./types";
 
 dotenv.config();
 
-const METAAPI_TOKEN = process.env.METAAPI_TOKEN!;
+const API_KEY = process.env.OANDA_API_KEY!;
 const ACCOUNT_ID = process.env.ACCOUNT_ID!;
-const TRADE_INTERVAL = process.env.TRADE_INTERVAL!;
+const BASE_URL = "https://api-fxpractice.oanda.com/v3";
+const UNITS = Number(process.env.LOT_SIZE!);
+const Instrument = "USD_JPY";
 
-const CHECK_TRADE_INTERVAL = 5 * 60 * 1000;
+const HEADERS = {
+  Authorization: `Bearer ${API_KEY}`,
+  "Content-Type": "application/json",
+};
 
-const lotSize = Number(process.env.LOT_SIZE) || 1;
-const symbol = "US30";
-const timeframe = "1m";
-const riskPoints = Number(process.env.RISK_POINTS) || 50; // Adjust your risk
-const rewardMultiplier = Number(process.env.REWARD_MULTIPLIER) || 1.5;
-const rewardPoints = riskPoints * rewardMultiplier;
-
-async function connectToAccount() {
-  const api = new MetaApi(METAAPI_TOKEN);
-  const account = await api.metatraderAccountApi.getAccount(ACCOUNT_ID);
-  const c = account.getRPCConnection();
-  await c.connect();
-  await c.waitSynchronized();
-
-  await account.deploy();
-  await account.waitConnected();
-  // const streaming = account.getStreamingConnection();
-
-  console.log("Connected to MetaApi & Broker.");
-  return { connection: c, account };
-}
-
-async function checkAndTrade() {
-  const now = new Date();
-  const hoursUtc = now.getUTCHours();
-
-  // Only run between 11:00 - 20:00 UTC
-  if (hoursUtc < 11 || hoursUtc >= 20) {
-    console.log("Outside trading hours, skipping trade check.");
-    return;
-  }
-  const { connection, account } = await connectToAccount();
-
-  console.log("Checking market...");
-
-  // Check if there’s already open position
-  const positions = await connection.getPositions();
-  const us30Positions = positions.filter((p) => p.symbol === symbol);
-  const openCount = us30Positions.length;
-
-  console.log(us30Positions.length);
-
-  if (openCount >= 3) {
-    console.log("Max open positions reached, skipping.");
-    return;
-  }
-  const numCandles = openCount === 0 ? 300 : 200;
-
-  const candles = await account.getHistoricalCandles(
-    symbol,
-    timeframe,
-    now,
-    numCandles
-  );
-  if (candles.length < numCandles) {
-    console.log("Not enough candles.");
-    return;
-  }
-
-  let aiParams:
-    | { side: "buy" | "sell"; stopLoss: number; takeProfit: number }
-    | undefined = undefined;
-  try {
-    // const slDistance = openCount > 0 ? 50 : 25;
-    // const tpDistance = openCount > 0 ? 75 : 37;
-
-    const prompt = buildPrompt(candles);
-
-    aiParams = await askAi(prompt);
-  } catch (e) {
-    console.log("ChatGPT error: ", e);
-  }
-
-  if (!aiParams) throw new Error("AI params not found.");
-  const price = await connection.getSymbolPrice(symbol, false);
-  const currentPrice = price.bid;
-
-  const side = aiParams.side;
-
-  // Determine risk points based on how many positions are already open
-  let currentRiskPoints = riskPoints; // default full risk
-  let lotToUse = lotSize;
-  if (openCount >= 1) {
-    currentRiskPoints = riskPoints / 2;
-    lotToUse = 1;
-  }
-
-  console.log(`Trend: ${side.toUpperCase()}`);
-
-  let stopLoss: number;
-  let takeProfit: number;
-
-  if (side === "buy") {
-    stopLoss = aiParams.stopLoss; // currentPrice - currentRiskPoints;
-    takeProfit = aiParams.takeProfit; //currentPrice + currentRiskPoints * rewardMultiplier;
-    await connection.createMarketBuyOrder(
-      symbol,
-      lotToUse,
-      stopLoss,
-      takeProfit
-    );
-  } else {
-    stopLoss = aiParams.stopLoss; //currentPrice + currentRiskPoints;
-    takeProfit = aiParams.takeProfit; //currentPrice - currentRiskPoints * rewardMultiplier;
-    await connection.createMarketSellOrder(
-      symbol,
-      lotToUse,
-      stopLoss,
-      takeProfit
-    );
-  }
-
-  console.log(
-    `Trade executed: ${side.toUpperCase()} with SL: ${stopLoss}, TP: ${takeProfit}`
-  );
-  await connection.close();
-  await account.remove();
-  await account.waitRemoved();
-}
-
-async function startBot() {
-  // Run immediately once
-  try {
-    await checkAndTrade();
-  } catch (e) {
-    console.log("start Error", e);
-  }
-  // Then run every 15 minutes
-  setInterval(async () => {
-    try {
-      await checkAndTrade();
-    } catch (err) {
-      console.error("Error during trading cycle:", err);
+export async function fetchCandles(
+  count: number,
+  granularity: string = "M1"
+): Promise<OandaRawCandle[]> {
+  const res = await axios.get<OandaCandleResponse>(
+    `${BASE_URL}/instruments/${Instrument}/candles`,
+    {
+      headers: HEADERS,
+      params: {
+        count,
+        granularity,
+        price: "M",
+      },
     }
-  }, CHECK_TRADE_INTERVAL); // every 15 minutes
+  );
+
+  return res.data.candles;
 }
 
-const app = express();
-const PORT = process.env.PORT || 8080;
+// === Dummy AI: Decide BUY/SELL ===
+async function decideAction(
+  candles: OandaRawCandle[]
+): Promise<"BUY" | "SELL"> {
+  const prompt = buildPrompt(candles);
+  const side = await askAi(prompt);
+  return side;
+}
+export async function fetchPricingAndBuildSLTP(
+  instrument: string,
+  side: "BUY" | "SELL",
+  stopPips: number = 5,
+  takePips: number = 10
+) {
+  const res = await axios.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/pricing`, {
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    params: {
+      instruments: instrument,
+    },
+  });
 
-app.get("/", (req: any, res: any) => {
-  res.send("US30 Bot running");
-});
+  const priceData = res.data?.prices?.[0];
+  if (!priceData) throw new Error("No pricing data found");
 
-app.listen(PORT, () => {
-  console.log(`HTTP server running on port ${PORT}`);
-});
+  const pip = 0.01; // pip size for JPY pairs
+  const bid = parseFloat(priceData.bids[0].price);
+  const ask = parseFloat(priceData.asks[0].price);
+  const entryPrice = side === "BUY" ? ask : bid;
 
-startBot().catch(console.error);
+  // clamp pips just in case
+  const slPips = Math.min(Math.max(stopPips, 10), 200); // between 10–200
+  const tpPips = Math.min(Math.max(takePips, 10), 300); // between 10–300
+
+  const stopLoss =
+    side === "BUY"
+      ? +(entryPrice - slPips * pip).toFixed(3)
+      : +(entryPrice + slPips * pip).toFixed(3);
+
+  const takeProfit =
+    side === "BUY"
+      ? +(entryPrice + tpPips * pip).toFixed(3)
+      : +(entryPrice - tpPips * pip).toFixed(3);
+
+  return {
+    instrument,
+    side,
+    entryPrice: +entryPrice.toFixed(3),
+    stopLoss,
+    takeProfit,
+    bid: +bid.toFixed(3),
+    ask: +ask.toFixed(3),
+    stopPips: slPips,
+    takePips: tpPips,
+  };
+}
+
+function buildOrderPayload(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  slPips: number,
+  tpPips: number
+) {
+  const units = side === "BUY" ? 60000 : -60000;
+  const pipValue = 0.01; // for JPY pairs
+
+  const slPrice =
+    side === "BUY"
+      ? (entryPrice - slPips * pipValue).toFixed(3)
+      : (entryPrice + slPips * pipValue).toFixed(3);
+
+  const tpPrice =
+    side === "BUY"
+      ? (entryPrice + tpPips * pipValue).toFixed(3)
+      : (entryPrice - tpPips * pipValue).toFixed(3);
+
+  return {
+    order: {
+      type: "MARKET",
+      instrument: "USD_JPY",
+      units: units.toString(),
+      timeInForce: "FOK",
+      positionFill: "DEFAULT",
+      stopLossOnFill: { price: slPrice },
+      takeProfitOnFill: { price: tpPrice },
+    },
+  };
+}
+
+// === Place market order ===
+async function placeMarketOrder(
+  side: "BUY" | "SELL",
+  entryPrice: number,
+  sl: number,
+  tp: number
+) {
+  const body = buildOrderPayload(side, entryPrice, sl, tp);
+  const res = await axios.post(
+    `${BASE_URL}/accounts/${ACCOUNT_ID}/orders`,
+    body,
+    { headers: HEADERS }
+  );
+  return res.data;
+}
+
+// === Main bot logic ===
+async function checkAndTrade() {
+  try {
+    const pos = await fetchOpenTrades();
+    if (pos.length > 0) {
+      console.log("Positions active, skipping...");
+      return;
+    }
+    const candles = await fetchCandles(200);
+    const action = await decideAction(candles);
+
+    console.log(`[${new Date().toISOString()}] Decision: ${action}`);
+    const config = await fetchPricingAndBuildSLTP(Instrument, action);
+    await placeMarketOrder(
+      action,
+      Number(config.entryPrice),
+      Number(config.stopLoss),
+      Number(config.takeProfit)
+    );
+
+    console.log(
+      `Executed ${action} order. SL: ${config.stopLoss}, TP: ${config.takeProfit}`
+    );
+  } catch (err) {
+    console.error("Bot error:", err);
+  }
+}
+export async function fetchOpenTrades() {
+  const res = await axios.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/openTrades`, {
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  // Return the array of trades
+  return res.data.trades as {
+    id: string;
+    instrument: string;
+    price: string;
+    openTime: string;
+    currentUnits: string;
+    unrealizedPL: string;
+    state: string;
+  }[];
+}
+
+function startBot() {
+  checkAndTrade();
+  setInterval(checkAndTrade, Number(process.env.TRADE_INTERVAL!) * 60 * 1000);
+}
+
+startBot();

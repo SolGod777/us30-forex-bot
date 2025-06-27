@@ -2,13 +2,9 @@ import axios from "axios";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const OPEN_AI_KEY = process.env.OPEN_AI_KEY;
+const OPEN_AI_KEY = process.env.OPEN_AI_KEY!;
 
-export const askAi = async (
-  prompt: string
-): Promise<
-  { side: "buy" | "sell"; stopLoss: number; takeProfit: number } | undefined
-> => {
+export const askAi = async (prompt: string): Promise<"BUY" | "SELL"> => {
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
     {
@@ -24,55 +20,28 @@ export const askAi = async (
     }
   );
 
-  let reply = response.data.choices[0].message.content;
-  console.log("GPT response:\n" + reply);
+  let reply = response.data.choices[0].message.content?.trim().toUpperCase();
 
-  // ✅ Remove Markdown code block if present
-  if (reply.startsWith("```")) {
-    reply = reply
-      .replace(/```(?:json)?/gi, "")
-      .replace(/```$/, "")
-      .trim();
-  }
+  console.log("GPT raw response:", reply);
 
-  try {
-    const parsed = JSON.parse(reply || "{}");
-    const side = parsed.side?.toLowerCase() as "buy" | "sell";
-    const stopLoss =
-      typeof parsed.stop_loss === "number" ? parsed.stop_loss : undefined;
-    const takeProfit =
-      typeof parsed.take_profit === "number" ? parsed.take_profit : undefined;
-
-    return { side, stopLoss, takeProfit };
-  } catch (e) {
-    console.error("Failed to parse GPT response as JSON", e);
-    throw new Error(`GPT error: ${e}`);
+  if (reply === "BUY" || reply === "SELL") {
+    return reply;
+  } else {
+    throw new Error(`Invalid GPT reply: ${reply}`);
   }
 };
 
 import { RSI, SMA, Stochastic, MACD, ATR } from "technicalindicators";
+import { OandaRawCandle } from "./types";
 
-type Candle = {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  time: Date;
-};
-
-export function buildPrompt(
-  candles: Candle[]
-  // slDistance: number,
-  // tpDistance: number
-): string {
+export function buildPrompt(candles: OandaRawCandle[]): string {
   if (candles.length < 200) {
     throw new Error("Need at least 200 candles");
   }
 
-  const closes = candles.map((c) => c.close);
-  const highs = candles.map((c) => c.high);
-  const lows = candles.map((c) => c.low);
+  const closes = candles.map((c) => parseFloat(c.mid.c));
+  const highs = candles.map((c) => parseFloat(c.mid.h));
+  const lows = candles.map((c) => parseFloat(c.mid.l));
 
   const rsi = RSI.calculate({ period: 14, values: closes }).slice(-1)[0];
   const stoch = Stochastic.calculate({
@@ -101,12 +70,12 @@ export function buildPrompt(
 
   const currentPrice = closes[closes.length - 1];
   const recentCandles = candles.slice(-50);
-  const recentHigh = Math.max(...recentCandles.map((c) => c.high));
-  const recentLow = Math.min(...recentCandles.map((c) => c.low));
+  const recentHigh = Math.max(...recentCandles.map((c) => parseFloat(c.mid.h)));
+  const recentLow = Math.min(...recentCandles.map((c) => parseFloat(c.mid.l)));
   const lastCandle = candles[candles.length - 1];
 
   const features = {
-    symbol: "US30",
+    symbol: "USD/JPY",
     timeframe: "M1",
     current_price: currentPrice,
     technical_indicators: {
@@ -127,56 +96,33 @@ export function buildPrompt(
     structure: {
       recent_swing_high: recentHigh,
       recent_swing_low: recentLow,
-      distance_to_swing_high: +(recentHigh - currentPrice).toFixed(2),
-      distance_to_swing_low: +(recentLow - currentPrice).toFixed(2),
     },
     volatility: {
-      current_range: +(lastCandle.high - lastCandle.low).toFixed(2),
+      current_range: +(
+        parseFloat(lastCandle.mid.h) - parseFloat(lastCandle.mid.l)
+      ).toFixed(2),
       average_range: +((recentHigh - recentLow) / 50).toFixed(2),
     },
-    candles: candles.slice(-100),
   };
 
   const prompt = `
-  You are an expert trading AI specialized in scalping the US30 (Dow Jones Index CFD) on the M1 timeframe.
-  
-  You will be provided with comprehensive market data including:
-  - Technical indicators (RSI, MACD, Stochastic, ATR)
-  - Recent price action candles (showing patterns, momentum, reversals)
-  - Support and resistance structures (recent swing highs/lows)
-  - Volatility levels (current and average ranges)
-  - Current market price
-  
-  Your task is to analyze this data and:
-  
-  1️⃣ Decide clearly whether to open a BUY or SELL position right now.
-  2️⃣ Recommend precise stop loss and take profit price levels that align logically with your trade direction, volatility, and recent market structure.
-  
-  📌 **Response Format (only valid JSON):**
-  {
-    "side": "BUY",
-    "stop_loss": 42975.2,
-    "take_profit": 43082.7
-  }
-  
-  ⚠️ **Important Rules & Guidelines:**
-  - The Stop Loss (SL) must be between 30 and 100 points from the current price, placed logically relative to recent swings and volatility (ATR).
-  - The Take Profit (TP) must be between 20 and 250 points from the current price, aiming to capture most of the realistic expected move.
-  - TP distance must be at least 1.2× SL distance and no more than 3× SL distance to maintain good risk/reward management.
-  - For BUY positions: SL must be BELOW current price, TP ABOVE current price.
-  - For SELL positions: SL must be ABOVE current price, TP BELOW current price.
-  - Utilize ATR (Average True Range) value provided to help determine appropriate distances for SL and TP.
-  - Use recent swing high/low data to place SL beyond logical support/resistance areas when possible.
-  - Aim to realistically maximize profit capture while maintaining conservative and realistic risk.
-  - Try to avoid going against the last 5 minutes trend unless the ATR supports it
+You are an expert forex scalping AI trading USD/JPY on the 1-minute chart.
 
-  Return ONLY the JSON object exactly as specified. No explanations, no markdown formatting, no extra text.
-  
-  Current Market Price: ${currentPrice}
-  
-  Market Data Provided:
-  ${JSON.stringify(features, null, 2)}
-  `;
+You are provided with:
+- Technical indicators (RSI, MACD, Stochastic, ATR)
+- Trend direction using moving averages
+- Recent candle and price structure
+- Volatility measures
+
+Your only task is to analyze this data and reply with exactly one word: **"BUY"** or **"SELL"** — nothing else.
+
+Current Market Price: ${currentPrice}
+
+Market Data:
+${JSON.stringify(features, null, 2)}
+
+Reply with exactly one word: "BUY" or "SELL"
+`;
 
   return prompt;
 }
