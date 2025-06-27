@@ -11,8 +11,8 @@ const BASE_URL = "https://api-fxpractice.oanda.com/v3";
 const UNITS = Number(process.env.LOT_SIZE!);
 const Instrument = "USD_JPY";
 const SIZE = 100_000;
-const SL = 3;
-const TP = 4;
+const SL = 4;
+const TP = 5;
 
 const HEADERS = {
   Authorization: `Bearer ${API_KEY}`,
@@ -195,5 +195,19 @@ function startBot() {
   checkAndTrade();
   setInterval(checkAndTrade, Number(process.env.TRADE_INTERVAL!) * 60 * 1000);
 }
+import express from "express";
+const app = express();
+const port = process.env.PORT || 3000;
 
+app.use(express.json());
+
+// Example route
+app.get("/", (req, res) => {
+  res.send("Hello from Express + TypeScript");
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on 8080`);
+});
 startBot();

@@ -64,7 +64,7 @@ const askAi = async (prompt) => {
 };
 exports.askAi = askAi;
 const technicalindicators_1 = require("technicalindicators");
-function buildPrompt(candles) {
+function buildPrompt(candles, instrument) {
     if (candles.length < 200) {
         throw new Error("Need at least 200 candles");
     }
@@ -129,7 +129,7 @@ function buildPrompt(candles) {
         },
     };
     const prompt = `
-You are an expert forex scalping AI trading USD/JPY on the 1-minute chart.
+You are an expert forex scalping AI trading ${instrument} on the 1-minute chart.
 
 You are provided with:
 - Technical indicators (RSI, MACD, Stochastic, ATR)
