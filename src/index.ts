@@ -41,8 +41,6 @@ export async function fetchCandles(
 // === Dummy AI: Decide BUY/SELL ===
 async function decideAction(candles: OandaRawCandle[]): Promise<{
   side: "BUY" | "SELL";
-  slPips: number;
-  tpPips: number;
 }> {
   const prompt = buildPrompt(candles);
   const action = await askAi(prompt);
@@ -165,9 +163,7 @@ async function checkAndTrade() {
       Number(TP)
     );
 
-    console.log(
-      `Executed ${action.side} order. SL: ${action.slPips}, TP: ${action.tpPips}`
-    );
+    console.log(`Executed ${action.side} order. SL: ${SL}, TP: ${TP}`);
   } catch (err) {
     console.error("Bot error:", err);
   }
