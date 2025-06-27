@@ -195,5 +195,19 @@ function startBot() {
   checkAndTrade();
   setInterval(checkAndTrade, Number(process.env.TRADE_INTERVAL!) * 60 * 1000);
 }
+import express from "express";
+const app = express();
+const port = process.env.PORT || 3000;
 
+app.use(express.json());
+
+// Example route
+app.get("/", (req, res) => {
+  res.send("Hello from Express + TypeScript");
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server running on 8080`);
+});
 startBot();
