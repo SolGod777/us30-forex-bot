@@ -159,15 +159,15 @@ You are provided with:
 - Candle sentiment, structure, momentum, and volatility
 - Active market session (Asia, London, or New York)
 
+- StopLoss Pips = 8
+- TakeProfit Pips = 10
+
 Your job:
 1. Decide "BUY" or "SELL"
-2. Recommend SL and TP values (in pips) based on structure and volatility
 
 Reply only in valid JSON format like:
 {
   "side": "BUY",
-  "slPips": 12,
-  "tpPips": 20
 }
 
 Current Price: ${currentPrice}
