@@ -49,13 +49,13 @@ const BASE_URL = "https://api-fxpractice.oanda.com/v3";
 const UNITS = Number(process.env.LOT_SIZE);
 const Instrument = "USD_JPY";
 const SIZE = 100000;
-const SL = 4;
-const TP = 5;
+const SL = 20;
+const TP = 30;
 const HEADERS = {
     Authorization: `Bearer ${API_KEY}`,
     "Content-Type": "application/json",
 };
-async function fetchCandles(count, granularity = "M1") {
+async function fetchCandles(count, granularity = "H1") {
     const res = await axios_1.default.get(`${BASE_URL}/instruments/${Instrument}/candles`, {
         headers: HEADERS,
         params: {
@@ -72,7 +72,7 @@ async function decideAction(candles) {
     const action = await (0, ai_1.askAi)(prompt);
     return action;
 }
-async function fetchPricingAndBuildSLTP(instrument, side, stopPips = 3, takePips = 5) {
+async function fetchPricingAndBuildSLTP(instrument, side, stopPips = SL, takePips = TP) {
     const res = await axios_1.default.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/pricing`, {
         headers: {
             Authorization: `Bearer ${API_KEY}`,
@@ -146,7 +146,6 @@ async function checkAndTrade() {
         }
         const candles = await fetchCandles(200);
         const action = await decideAction(candles);
-        console.log(`[${new Date().toISOString()}] Decision: ${action}`);
         const config = await fetchPricingAndBuildSLTP(Instrument, action.side);
         await placeMarketOrder(action.side, Number(config.entryPrice), Number(action.slPips), Number(action.tpPips));
         console.log(`Executed ${action.side} order. SL: ${action.slPips}, TP: ${action.tpPips}`);

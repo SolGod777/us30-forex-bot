@@ -8,6 +8,8 @@ export const askAi = async (
   prompt: string
 ): Promise<{
   side: "BUY" | "SELL";
+  slPips: number;
+  tpPips: number;
 }> => {
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
@@ -33,10 +35,14 @@ export const askAi = async (
   }
 
   try {
-    const parsed: { side: "BUY" | "SELL" } = JSON.parse(content!);
+    const parsed: { side: "BUY" | "SELL"; slPips: number; tpPips: number } =
+      JSON.parse(content!);
     if (parsed && (parsed.side === "BUY" || parsed.side === "SELL")) {
       const clamp = (value: number, min: number, max: number) =>
         Math.max(min, Math.min(value, max));
+
+      // const sl = parsed.slPips;
+      // const tp = parsed.tpPips;
 
       return parsed;
     } else {
@@ -190,6 +196,7 @@ You are given detailed market data, including:
 Your objective is:
 1. Analyze all available data
 2. Decide the best trading direction for the next few hours
+3. Decide a reasonable slPips and tpPips from the current price and data.
 
 Return only valid JSON like this:
 {

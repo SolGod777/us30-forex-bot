@@ -12,7 +12,7 @@ const UNITS = Number(process.env.LOT_SIZE!);
 const Instrument = "USD_JPY";
 const SIZE = 100_000;
 const SL = 20;
-const TP = 40;
+const TP = 30;
 
 const HEADERS = {
   Authorization: `Bearer ${API_KEY}`,
@@ -41,6 +41,8 @@ export async function fetchCandles(
 // === Dummy AI: Decide BUY/SELL ===
 async function decideAction(candles: OandaRawCandle[]): Promise<{
   side: "BUY" | "SELL";
+  slPips: number;
+  tpPips: number;
 }> {
   const prompt = buildPrompt(candles);
   const action = await askAi(prompt);
@@ -159,11 +161,13 @@ async function checkAndTrade() {
     await placeMarketOrder(
       action.side,
       Number(config.entryPrice),
-      Number(SL),
-      Number(TP)
+      Number(action.slPips),
+      Number(action.tpPips)
     );
 
-    console.log(`Executed ${action.side} order. SL: ${SL}, TP: ${TP}`);
+    console.log(
+      `Executed ${action.side} order. SL: ${action.slPips}, TP: ${action.tpPips}`
+    );
   } catch (err) {
     console.error("Bot error:", err);
   }
