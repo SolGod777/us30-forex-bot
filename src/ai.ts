@@ -102,9 +102,36 @@ export function buildPrompt(candles: OandaRawCandle[]): string {
   if (utcHour >= 7 && utcHour < 15) session = "London";
   if (utcHour >= 13 && utcHour < 21) session = "New York";
 
+  // Candle body/wick analysis
+  const bodies = recent.map((c) =>
+    Math.abs(parseFloat(c.mid.c) - parseFloat(c.mid.o))
+  );
+  const avgBodySize = +(
+    bodies.reduce((a, b) => a + b, 0) / bodies.length
+  ).toFixed(2);
+
+  const avgWickSize = +(
+    recent
+      .map(
+        (c) =>
+          parseFloat(c.mid.h) -
+          parseFloat(c.mid.l) -
+          Math.abs(parseFloat(c.mid.c) - parseFloat(c.mid.o))
+      )
+      .reduce((a, b) => a + b, 0) / bodies.length
+  ).toFixed(2);
+
+  // Gap detection
+  const gaps = recent
+    .slice(1)
+    .map((c, i) => parseFloat(c.mid.o) - parseFloat(recent[i].mid.c));
+  const avgGap = +(
+    gaps.reduce((a, b) => a + Math.abs(b), 0) / gaps.length
+  ).toFixed(4);
+
   const features = {
     symbol: "USD/JPY",
-    timeframe: "M1",
+    timeframe: "H1",
     session,
     current_price: currentPrice,
     technical_indicators: {
@@ -131,6 +158,16 @@ export function buildPrompt(candles: OandaRawCandle[]): string {
       recent_bullish_candles: bullishCount,
       recent_bearish_candles: bearishCount,
     },
+    body_structure: {
+      avg_candle_body_size: avgBodySize,
+      avg_total_wick_size: avgWickSize,
+    },
+    gap_behavior: {
+      avg_hourly_gap: avgGap,
+    },
+    sentiment: {
+      body_to_range_ratio: +(avgBodySize / (atr || 1)).toFixed(2),
+    },
     volatility: {
       current_range: +(
         parseFloat(lastCandle.mid.h) - parseFloat(lastCandle.mid.l)
@@ -140,26 +177,28 @@ export function buildPrompt(candles: OandaRawCandle[]): string {
   };
 
   return `
-You are an expert forex scalping AI trading USD/JPY on the 1-minute chart.
+You are an expert AI swing trader analyzing USD/JPY on the **hourly chart (H1)**.
 
-You are provided with:
-- Technical indicators (RSI, MACD, Stochastic, ATR)
-- Trend direction via moving averages
-- Candle sentiment, structure, momentum, and volatility
-- Active market session (Asia, London, or New York)
+You are given detailed market data, including:
+- Technical indicators: RSI, MACD, Stochastic, ATR
+- Trend information via moving averages
+- Candle body/wick structure
+- Recent sentiment and volatility
+- Gap behavior and price momentum
+- Current forex session (Asia, London, New York)
 
-- StopLoss Pips = 8
-- TakeProfit Pips = 10
+Your objective is:
+1. Analyze all available data
+2. Decide the best trading direction for the next few hours
 
-Your job:
-1. Decide "BUY" or "SELL"
-
-Reply only in valid JSON format like:
+Return only valid JSON like this:
 {
   "side": "BUY",
+  "slPips": 25,
+  "tpPips": 45
 }
 
-Current Price: ${currentPrice}
+Current Market Price: ${currentPrice}
 Market Data:
 ${JSON.stringify(features, null, 2)}
 `;

@@ -11,8 +11,8 @@ const BASE_URL = "https://api-fxpractice.oanda.com/v3";
 const UNITS = Number(process.env.LOT_SIZE!);
 const Instrument = "USD_JPY";
 const SIZE = 100_000;
-const SL = 8;
-const TP = 10;
+const SL = 20;
+const TP = 40;
 
 const HEADERS = {
   Authorization: `Bearer ${API_KEY}`,
@@ -21,7 +21,7 @@ const HEADERS = {
 
 export async function fetchCandles(
   count: number,
-  granularity: string = "M1"
+  granularity: string = "H1"
 ): Promise<OandaRawCandle[]> {
   const res = await axios.get<OandaCandleResponse>(
     `${BASE_URL}/instruments/${Instrument}/candles`,
@@ -49,8 +49,8 @@ async function decideAction(candles: OandaRawCandle[]): Promise<{
 export async function fetchPricingAndBuildSLTP(
   instrument: string,
   side: "BUY" | "SELL",
-  stopPips: number = 3,
-  takePips: number = 5
+  stopPips: number = SL,
+  takePips: number = TP
 ) {
   const res = await axios.get(`${BASE_URL}/accounts/${ACCOUNT_ID}/pricing`, {
     headers: {
